@@ -24,14 +24,12 @@ the declared pipeline name.
 ## Source form
 
 ```pipe
-pipeline add_one #(
-    parameter integer W = 16
-) begin
+pipeline add_one begin
 
     stage add {x} yields {result} begin
 
-        logic [W-1:0] x;
-        logic [W-1:0] result = x + 1;
+        logic [7:0] x;
+        logic [7:0] result = x + 1;
 
     endstage
 
@@ -46,13 +44,11 @@ stage body:
 
 ```pipe
 stage add {
-    logic [W-1:0] sample,
-    logic [7:0] flags
+    logic [7:0] x
 } yields {
-    logic [W-1:0] result,
-    flags
+    logic [7:0] result
 } begin
-    result = sample + 1;
+    result = x + 1;
 endstage
 ```
 
