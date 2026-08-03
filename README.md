@@ -84,6 +84,80 @@ pipeline mac #(
 endpipeline
 ```
 
+The same tiny pipeline, written by hand in vanilla SystemVerilog, is already
+mostly payload plumbing and ready/valid bookkeeping. This is equivalent to the
+example above and deliberately has no skid buffer:
+
+```systemverilog
+module mac_manual #(
+    parameter integer W = 16
+) (
+    input  logic             clk,
+    input  logic             reset,
+    input  logic             enable,
+
+    input  logic             in_valid,
+    output logic             in_ready,
+    output logic             out_valid,
+    input  logic             out_ready,
+
+    input  logic [3*W-1:0]   packet_in,
+    output logic [W-1:0]     packet_out
+);
+
+    logic [W-1:0] m;
+    logic [W-1:0] x;
+    logic [W-1:0] b;
+    assign {m, x, b} = packet_in;
+
+    logic             multiply_valid;
+    logic             multiply_ready;
+    logic [2*W-1:0]   multiply_mx;
+    logic [W-1:0]     multiply_b;
+
+    logic             accumulate_ready;
+    logic [W-1:0]     result;
+    assign packet_out = result;
+
+    assign accumulate_ready = ~out_valid | out_ready;
+    assign multiply_ready = accumulate_ready;
+    assign in_ready = ~multiply_valid | multiply_ready;
+
+    wire take_multiply_in = in_valid & in_ready;
+    wire take_multiply_out = multiply_valid & multiply_ready;
+    wire take_accumulate_in = multiply_valid & accumulate_ready;
+    wire take_accumulate_out = out_valid & out_ready;
+
+    always_ff @(posedge clk) begin
+        if (reset) begin
+            multiply_valid <= 1'b0;
+        end else if (enable) begin
+            if (take_multiply_in) begin
+                multiply_mx <= m * x;
+                multiply_b <= b;
+                multiply_valid <= 1'b1;
+            end else if (take_multiply_out) begin
+                multiply_valid <= 1'b0;
+            end
+        end
+    end
+
+    always_ff @(posedge clk) begin
+        if (reset) begin
+            out_valid <= 1'b0;
+            result <= '0;
+        end else if (enable) begin
+            if (take_accumulate_in) begin
+                result <= multiply_mx + multiply_b;
+                out_valid <= 1'b1;
+            end else if (take_accumulate_out) begin
+                out_valid <= 1'b0;
+            end
+        end
+    end
+endmodule
+```
+
 The first stage must give each incoming value a packed type. After that, carried
 values inherit their preceding stage's type positionally, so a later stage only
 needs to declare the values it creates. `logic` initializer declarations become
