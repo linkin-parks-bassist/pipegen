@@ -1,0 +1,61 @@
+// Direct-form-I low-pass biquad step, scheduled for 2-MAC FPGA DSP blocks.
+// x, x1, x2, y1, y2, and all returned histories are signed Q1.15.
+// b0, b1, b2, a1, a2 are signed Q3.13 inputs.
+pipeline biquad_df1_lpf begin
+
+    // Peel b0/x and b1/x1. Everything else is simply passed along.
+    stage mac_b0_b1 {x, x1, x2, y1, y2, b0, b1, b2, a1, a2} yields {x, x1, b2, x2, a1, y1, a2, y2, acc_01} begin
+
+        logic signed [15:0] x;
+        logic signed [15:0] x1;
+        logic signed [15:0] x2;
+        logic signed [15:0] y1;
+        logic signed [15:0] y2;
+        logic signed [15:0] b0;
+        logic signed [15:0] b1;
+        logic signed [15:0] b2;
+        logic signed [15:0] a1;
+        logic signed [15:0] a2;
+        logic signed [34:0] acc_01;
+
+        acc_01 = 35'(b0 * x) + 35'(b1 * x1);
+
+    endstage
+
+    // Peel b2/x2 and a1/y1: another full 2-MAC stage.
+    stage mac_b2_a1 {x, x1, b2, x2, a1, y1, a2, y2, acc_01} yields {x, x1, a2, y1, y2, acc_0121} begin
+
+        logic signed [34:0] acc_0121;
+
+        acc_0121 = acc_01 + 35'(b2 * x2) - 35'(a1 * y1);
+
+    endstage
+
+    // Final feedback MAC, saturation, and the four explicit DF-I state updates.
+    stage mac_a2_and_update {x, x1, a2, y1, y2, acc_0121} yields {y, x1_next, x2_next, y1_next, y2_next} begin
+
+        logic signed [34:0] acc_final;
+        logic signed [15:0] y;
+        logic signed [15:0] x1_next;
+        logic signed [15:0] x2_next;
+        logic signed [15:0] y1_next;
+        logic signed [15:0] y2_next;
+
+        acc_final = acc_0121 - 35'(a2 * y2);
+
+        if (acc_final > (35'sd32767 <<< 13)) begin
+            y = 16'sh7fff;
+        end else if (acc_final < (-35'sd32768 <<< 13)) begin
+            y = -16'sd32768;
+        end else begin
+            y = acc_final[28:13];
+        end
+
+        x1_next = x;
+        x2_next = x1;
+        y1_next = y;
+        y2_next = y1;
+
+    endstage
+
+endpipeline

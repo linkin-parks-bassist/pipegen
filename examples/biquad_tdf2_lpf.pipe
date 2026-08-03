@@ -1,0 +1,128 @@
+// Two-state transposed direct-form-II low-pass biquad step.
+// x, z1, z2, y, z1_next, z2_next are signed Q1.15.
+// b0, b1, b2, a1, a2 are signed Q3.13 inputs.
+pipeline biquad_tdf2_lpf begin
+
+    stage b0_product {x, z1, z2, b0, b1, b2, a1, a2} yields {x, y_product, z1, z2, b1, b2, a1, a2} begin
+
+        logic signed [15:0] x;
+        logic signed [15:0] z1;
+        logic signed [15:0] z2;
+        logic signed [15:0] b0;
+        logic signed [15:0] b1;
+        logic signed [15:0] b2;
+        logic signed [15:0] a1;
+        logic signed [15:0] a2;
+        logic signed [31:0] y_product;
+
+        y_product = x * b0;
+
+    endstage
+
+    stage output_accumulate {x, y_product, z1, z2, b1, b2, a1, a2} yields {x, y_acc, z1, z2, b1, b2, a1, a2} begin
+
+        logic signed [15:0] x;
+        logic signed [31:0] y_product;
+        logic signed [15:0] z1;
+        logic signed [15:0] z2;
+        logic signed [15:0] b1;
+        logic signed [15:0] b2;
+        logic signed [15:0] a1;
+        logic signed [15:0] a2;
+        logic signed [34:0] y_acc;
+        logic signed [34:0] y_product_wide;
+        logic signed [34:0] z1_wide;
+
+        y_product_wide = {{3{y_product[31]}}, y_product};
+        z1_wide = {{19{z1[15]}}, z1};
+        y_acc = y_product_wide + (z1_wide <<< 13);
+
+    endstage
+
+    stage output_saturate {x, y_acc, z1, z2, b1, b2, a1, a2} yields {x, y, z2, b1, b2, a1, a2} begin
+
+        logic signed [15:0] x;
+        logic signed [34:0] y_acc;
+        logic signed [15:0] z1;
+        logic signed [15:0] z2;
+        logic signed [15:0] b1;
+        logic signed [15:0] b2;
+        logic signed [15:0] a1;
+        logic signed [15:0] a2;
+        logic signed [15:0] y;
+
+        if (y_acc > (35'sd32767 <<< 13)) begin
+            y = 16'sh7fff;
+        end else if (y_acc < (-35'sd32768 <<< 13)) begin
+            y = -16'sd32768;
+        end else begin
+            y = y_acc[28:13];
+        end
+
+    endstage
+
+    stage z1_accumulate {x, y, z2, b1, b2, a1, a2} yields {x, z1_acc, y, b2, a2} begin
+
+        logic signed [15:0] x;
+        logic signed [15:0] y;
+        logic signed [15:0] z2;
+        logic signed [15:0] b1;
+        logic signed [15:0] b2;
+        logic signed [15:0] a1;
+        logic signed [15:0] a2;
+        logic signed [34:0] z1_acc;
+
+        z1_acc = (b1 * x) - (a1 * y) + (z2 * 16'sd8192);
+
+    endstage
+
+    stage z1_saturate {x, z1_acc, y, b2, a2} yields {x, z1_next, y, b2, a2} begin
+
+        logic signed [15:0] x;
+        logic signed [34:0] z1_acc;
+        logic signed [15:0] y;
+        logic signed [15:0] b2;
+        logic signed [15:0] a2;
+        logic signed [15:0] z1_next;
+
+        if (z1_acc > (35'sd32767 <<< 13)) begin
+            z1_next = 16'sh7fff;
+        end else if (z1_acc < (-35'sd32768 <<< 13)) begin
+            z1_next = -16'sd32768;
+        end else begin
+            z1_next = z1_acc[28:13];
+        end
+
+    endstage
+
+    stage z2_accumulate {x, z1_next, y, b2, a2} yields {y, z1_next, z2_acc} begin
+
+        logic signed [15:0] x;
+        logic signed [15:0] z1_next;
+        logic signed [15:0] y;
+        logic signed [15:0] b2;
+        logic signed [15:0] a2;
+        logic signed [34:0] z2_acc;
+
+        z2_acc = (b2 * x) - (a2 * y);
+
+    endstage
+
+    stage z2_saturate {y, z1_next, z2_acc} yields {y, z1_next, z2_next} begin
+
+        logic signed [15:0] y;
+        logic signed [15:0] z1_next;
+        logic signed [34:0] z2_acc;
+        logic signed [15:0] z2_next;
+
+        if (z2_acc > (35'sd32767 <<< 13)) begin
+            z2_next = 16'sh7fff;
+        end else if (z2_acc < (-35'sd32768 <<< 13)) begin
+            z2_next = -16'sd32768;
+        end else begin
+            z2_next = z2_acc[28:13];
+        end
+
+    endstage
+
+endpipeline

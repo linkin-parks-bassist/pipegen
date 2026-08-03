@@ -1,0 +1,46 @@
+// Signed fixed-point cascade: Q1.15 -> Q1.15 gain -> Q1.15 gain -> Q1.15.
+pipeline q15_two_gain #(
+    parameter integer W = 16
+) begin
+
+    stage gain_1 {sample_in} yields {sample_1} begin
+
+        logic signed [W-1:0] sample_in;
+        logic signed [2*W-1:0] product;
+        logic signed [2*W-1:0] shifted;
+        logic signed [W-1:0] sample_1;
+
+        product = sample_in * 16'sd24576;
+        shifted = product >>> 15;
+
+        if (shifted > 32'sd32767) begin
+            sample_1 = 16'sh7fff;
+        end else if (shifted < -32'sd32768) begin
+            sample_1 = -16'sd32768;
+        end else begin
+            sample_1 = shifted[W-1:0];
+        end
+
+    endstage
+
+    stage gain_2 {sample_1} yields {sample_out} begin
+
+        logic signed [W-1:0] sample_1;
+        logic signed [2*W-1:0] product;
+        logic signed [2*W-1:0] shifted;
+        logic signed [W-1:0] sample_out;
+
+        product = sample_1 * 16'sd16384;
+        shifted = product >>> 15;
+
+        if (shifted > 32'sd32767) begin
+            sample_out = 16'sh7fff;
+        end else if (shifted < -32'sd32768) begin
+            sample_out = -16'sd32768;
+        end else begin
+            sample_out = shifted[W-1:0];
+        end
+
+    endstage
+
+endpipeline
