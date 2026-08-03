@@ -28,55 +28,68 @@ pipeline add_one #(
     parameter integer W = 16
 ) begin
 
-    stage add {sample, flags} yields {result, flags_out} begin
+    stage add {x} yields {result} begin
 
-        logic signed [W-1:0] sample;
-        logic [7:0] flags;
-        logic signed [W-1:0] result = sample + 1;
-        logic [7:0] flags_out = flags;
+        logic [W-1:0] x;
+        logic [W-1:0] result = x + 1;
 
     endstage
 
 endpipeline
 ```
 
-`stage NAME {inputs} yields {outputs} begin` and `endstage` delimit a stage;
-indentation and blank lines are entirely cosmetic. Tuple order is packing order:
-the leftmost item is the MSB side of the packed payload.
-
-For compact stages, the whole declaration can also be written on one line:
-
-```pipe
-stage increment {x} yields {y} begin logic [7:0] x; logic [7:0] y = x + 1; endstage
-```
-
-Each tuple item may be a bare name or a packed SystemVerilog declaration:
+The body of a stage is ordinary combinational SystemVerilog. Write and lay it
+out like Verilog; indentation and blank lines carry no meaning. The braces name
+the packed values entering and leaving a stage, ordered from MSB to LSB.
+Types may either live in the tuple or appear as normal declarations in the
+stage body:
 
 ```pipe
 stage add {
-    logic signed [W-1:0] sample,
-    unsigned [7:0] flags
+    logic [W-1:0] sample,
+    logic [7:0] flags
 } yields {
-    logic signed [W-1:0] result,
+    logic [W-1:0] result,
     flags
 } begin
     result = sample + 1;
 endstage
 ```
 
-A bare name in the first-stage tuple must be declared in that stage body. In a
-later stage, a bare input inherits the packed type of the positional value from
-the preceding stage, so carried values do not need repeated declarations. A
-typed header item is declared by the generator and must not be repeated in the
-body.
-The body is ordinary combinational SystemVerilog. Declare `logic` or `wire`
-locals anywhere; a `logic` declaration initializer becomes an assignment in the
-generated `always_comb`, while a `wire` initializer remains a continuous wire.
+A less trivial, but still simple, example would be a MAC pipeline:
 
-Adjacent stages connect tuple values positionally. Pipegen checks tuple length
-and width at every boundary; names and signedness are local to each stage.
-Place `skid` or `no_skid` anywhere before `endstage` to override automatic skid
-placement after that stage.
+
+```pipe
+pipeline mac #(
+    parameter integer W = 16
+) begin
+
+    stage M {m, x, b} yields {mx, b} begin
+
+        logic [W-1:0] m;
+        logic [W-1:0] x;
+        logic [W-1:0] b;
+
+        logic [2*W-1:0] mx = m * x;
+
+    endstage
+
+    stage AC {mx, b} yields {result} begin
+
+        logic [2*W-1:0] mx_plus_b = mx + b;
+        logic [W-1:0] result = mx_plus_b[W-1:0];
+
+    endstage
+
+endpipeline
+```
+
+The first stage must give each incoming value a packed type. After that, carried
+values inherit their preceding stage's type positionally, so a later stage only
+needs to declare the values it creates. `logic` initializer declarations become
+assignments in the generated combinational block; initialized `wire`s stay
+continuous assignments. Add `skid` or `no_skid` inside a stage only when you
+want to override the default skid-buffer spacing.
 
 Run checks with:
 
