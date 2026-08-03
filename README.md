@@ -23,7 +23,7 @@ the declared pipeline name.
 
 ## Source form
 
-```pipe
+```systemverilog
 pipeline add_one begin
     stage add {logic [7:0] x} yields {logic [7:0] result} begin
         result = x + 1;
@@ -34,7 +34,7 @@ endpipeline
 A less trivial, but still simple, example would be a MAC pipeline:
 
 
-```pipe
+```systemverilog
 pipeline mac #(
     parameter integer W = 16
 ) begin
