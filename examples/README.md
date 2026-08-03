@@ -1,4 +1,21 @@
-# Q1.15 two-gain pipeline
+# Examples
+
+## Toy MAC
+
+`mac.pipe` is the parameterized unsigned, truncating MAC from the top-level
+README. It computes `(m * x) + b` in two ready/valid stages, carrying `b` from
+the multiply to the accumulate stage without repeating its type declaration.
+
+```sh
+cd examples
+make mac
+```
+
+The self-checking simulation writes `build/mac.vcd`, holds `out_ready` low for
+one transaction, and checks both a normal result and deliberate W-bit overflow.
+Open it with `make mac-wave`.
+
+## Q1.15 two-gain pipeline
 
 This example sends a signed Q1.15 sample through two hard-coded Q1.15 gains.
 Each stage declares only the typed packed tuple it receives and yields; all

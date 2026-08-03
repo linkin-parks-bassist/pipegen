@@ -25,31 +25,10 @@ the declared pipeline name.
 
 ```pipe
 pipeline add_one begin
-
-    stage add {x} yields {result} begin
-
-        logic [7:0] x;
-        logic [7:0] result = x + 1;
-
+    stage add {logic [7:0] x} yields {logic [7:0] result} begin
+        result = x + 1;
     endstage
-
 endpipeline
-```
-
-The body of a stage is ordinary combinational SystemVerilog. Write and lay it
-out like Verilog; indentation and blank lines carry no meaning. The braces name
-the packed values entering and leaving a stage, ordered from MSB to LSB.
-Types may either live in the tuple or appear as normal declarations in the
-stage body:
-
-```pipe
-stage add {
-    logic [7:0] x
-} yields {
-    logic [7:0] result
-} begin
-    result = x + 1;
-endstage
 ```
 
 A less trivial, but still simple, example would be a MAC pipeline:

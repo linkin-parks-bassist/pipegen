@@ -143,6 +143,24 @@ endmodule
             run_result = subprocess.run(["vvp", str(executable)], text=True, capture_output=True)
             self.assertEqual(run_result.returncode, 0, run_result.stdout + run_result.stderr)
 
+    @unittest.skipUnless(shutil.which("iverilog") and shutil.which("vvp"), "Icarus Verilog is not installed")
+    def test_mac_example_generates_and_simulates(self):
+        root = Path(__file__).parent
+        pipe = pipegen.parse_pipe((root / "examples" / "mac.pipe").read_text())
+        with tempfile.TemporaryDirectory() as directory:
+            generated = Path(directory) / "mac.sv"
+            executable = Path(directory) / "sim"
+            generated.write_text(pipegen.generate(pipe))
+            result = subprocess.run(
+                ["iverilog", "-g2012", "-s", "mac_tb", "-o", str(executable), str(generated), str(root / "examples" / "mac_tb.sv")],
+                text=True,
+                capture_output=True,
+                cwd=root / "examples",
+            )
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            result = subprocess.run(["vvp", str(executable)], text=True, capture_output=True, cwd=root / "examples")
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
 
 if __name__ == "__main__":
     unittest.main()
