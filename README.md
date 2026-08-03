@@ -1,4 +1,4 @@
-# pipegen
+# Pipegen
 
 ## Attribution
 
