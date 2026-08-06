@@ -41,6 +41,15 @@ deterministic three-port routing tree for all routed links. Use `--diagram
 PATH` for a different diagram path or `--no-diagram` to suppress it. Run the
 supplied direct-and-routed example with `cd examples && make fabric`.
 
+Here is the elaborated graph for the larger mixer example. Its pleasantly fishy
+shape is not hand-drawn: it is the generated SVG, laid out from the fabric's
+routing topology.
+
+<img src="docs/mixer_network.svg" alt="Generated Pigen mixer routing network diagram" width="900">
+
+Regenerate it with `./pigen.py fabric examples/mixer_network.fabric -o
+/tmp/mixer_network.sv --diagram docs/mixer_network.svg`.
+
 ## Source form
 
 ```systemverilog
