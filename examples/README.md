@@ -1,5 +1,37 @@
 # Examples
 
+## Blind source-routed fabric
+
+`fabric_demo.fabric` contains a dedicated direct link and two routes into a
+shared destination input. Pigen emits the tree topology, fixed opaque paths,
+source-signature localparams, a `build/fabric_demo.sv.routes` manifest, and a
+`build/fabric_demo.sv.svg` diagram of the elaborated routing network.
+
+```sh
+cd examples
+make fabric
+```
+
+The self-checking simulation verifies direct and routed payloads, destination
+backpressure, and the delivered path values for both recognized sources. Open
+the generated waveform with `make fabric-wave`; run the same testbench through
+Verilator with `make fabric-verilator`.
+
+## Mixer network topology
+
+`mixer_network.fabric` is a larger connectivity-only example for browsing the
+generated routing graph. It has three sample producers, three control sources,
+three mix-result consumers, two telemetry paths, and two local direct links.
+
+```sh
+cd examples
+make fabric-network
+```
+
+Open `build/mixer_network.sv.svg` in a browser or SVG-capable viewer to inspect
+the elaborated router tree, endpoint attachments, direct links, and route-path
+legend.
+
 ## Toy MAC
 
 `mac.pipe` is the parameterized unsigned, truncating MAC from the top-level

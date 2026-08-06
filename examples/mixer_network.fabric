@@ -1,0 +1,32 @@
+// A moderately sized audio/control network intended for inspecting the
+// generated topology diagram.  Direct links are reserved for local, exclusive
+// point-to-point connections; the rest share the routed fabric.
+fabric mixer_network #(
+    parameter integer PAYLOAD_W = 32
+) begin
+
+    // Three independent sample producers feed the mix engine.
+    input_left.samples.main -> mixer.samples.left;
+    input_right.samples.main -> mixer.samples.right;
+    synthesizer.samples.main --> mixer.samples.synth;
+
+    // Control may come from the UI, automation, or the sequencer.
+    ui.control.mixer -> mixer.command.ui;
+    automation.control.mixer --> mixer.command.automation;
+    sequencer.control.mixer ---> mixer.command.sequencer;
+
+    // The mix result fans out through distinct named output handles.
+    mixer.output.monitor -> monitor.samples.mixer;
+    mixer.output.recorder --> recorder.samples.mixer;
+    mixer.output.analysis --> analyser.samples.mixer;
+
+    // Analysis and metering report back to the UI/control plane.
+    analyser.status.level -> ui.telemetry.analyser;
+    meter.status.level --> ui.telemetry.meter;
+    mixer.output.metering -> meter.samples.mixer;
+
+    // Local exclusive links deliberately bypass the routing network.
+    recorder.control.transport > storage.command;
+    storage.status.position > recorder.position;
+
+endfabric

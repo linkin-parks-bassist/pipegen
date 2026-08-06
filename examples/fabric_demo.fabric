@@ -1,0 +1,11 @@
+// One dedicated direct link and two source-routed links into one input.
+fabric fabric_demo #(
+    parameter integer PAYLOAD_W = 8
+) begin
+
+    direct_src.tx.direct > direct_dst.rx;
+
+    source_a.tx.to_sink -> sink.rx.a;
+    source_d.tx.to_sink --> sink.rx.d;
+
+endfabric

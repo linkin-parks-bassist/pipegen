@@ -1,0 +1,40 @@
+module pigen_example (
+	input wire clk,
+	input wire reset,
+	
+	input port [31:0] data,
+	inout axi  [31:0] ram
+);
+
+	unit_1 a;
+	unit_1 b;
+	unit_2 c;
+	unit_3 d;
+	
+	fabric
+		data > a.in;
+		
+		a.out.mono	 -> b.in;
+		c.out	 	--> b.in;
+		b.out.left 	 -> c.in;
+		b.out.right  -> c.in;
+		
+		ram > d.in.ram;
+		
+		d.out -> a.in;
+	
+	endfabric
+endmodule
+
+pipeline unit_1 (
+		inout  port [W-1:0] x,
+	);
+	
+	stage {x}     yields {x + 1, x};
+	stage {x, y}  yields {x - (y >> 2)};
+	
+	// blah blah
+	
+endmodule
+
+// and so on

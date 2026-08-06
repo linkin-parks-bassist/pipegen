@@ -10,10 +10,16 @@ from dataclasses import dataclass
 from pathlib import Path
 
 
+if __name__ == "__main__":
+    # Fabric support imports this module for shared parser utilities.  Keep the
+    # script invocation and import invocation on the same exception class.
+    sys.modules.setdefault("pigen", sys.modules[__name__])
+
+
 IDENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_$]*$")
 
 
-class PipegenError(Exception):
+class PigenError(Exception):
     def __init__(self, line: int, message: str):
         super().__init__(f"line {line}: {message}")
         self.line = line
@@ -107,16 +113,16 @@ class Parser:
 
     def current(self) -> SourceLine:
         if self.i >= len(self.lines):
-            raise PipegenError(self.lines[-1].number if self.lines else 1, "unexpected end of file")
+            raise PigenError(self.lines[-1].number if self.lines else 1, "unexpected end of file")
         return self.lines[self.i]
 
     def parse(self) -> Pipeline:
         if not self.lines:
-            raise PipegenError(1, "file is empty")
+            raise PigenError(1, "file is empty")
         head = self.current()
         match = re.fullmatch(r"pipeline\s+([A-Za-z_][A-Za-z0-9_$]*)\s*(#\(|begin)", head.text)
         if not match:
-            raise PipegenError(head.number, "expected `pipeline NAME begin` or `pipeline NAME #(`")
+            raise PigenError(head.number, "expected `pipeline NAME begin` or `pipeline NAME #(`")
         name, opening = match.groups()
         self.i += 1
         params: list[tuple[str, str, int]] = []
@@ -128,15 +134,15 @@ class Parser:
         while self.current().text != "endpipeline":
             stage = self.parse_stage(previous)
             if stage.name in names:
-                raise PipegenError(stage.line, f"duplicate stage `{stage.name}`")
+                raise PigenError(stage.line, f"duplicate stage `{stage.name}`")
             names.add(stage.name)
             stages.append(stage)
             previous = stage.yielded
         self.i += 1
         if self.i != len(self.lines):
-            raise PipegenError(self.current().number, "content after endpipeline")
+            raise PigenError(self.current().number, "content after endpipeline")
         if not stages:
-            raise PipegenError(head.number, "pipeline requires at least one stage")
+            raise PigenError(head.number, "pipeline requires at least one stage")
         pipe = Pipeline(name, params, stages)
         self.validate(pipe)
         return pipe
@@ -151,10 +157,10 @@ class Parser:
                 return result
             match = re.fullmatch(r"parameter\s+integer\s+([A-Za-z_][A-Za-z0-9_$]*)\s*=\s*(.+?)\s*,?", line.text)
             if not match:
-                raise PipegenError(line.number, "expected `parameter integer NAME = DEFAULT` or `) begin`")
+                raise PigenError(line.number, "expected `parameter integer NAME = DEFAULT` or `) begin`")
             name, default = match.groups()
             if name in names:
-                raise PipegenError(line.number, f"duplicate parameter `{name}`")
+                raise PigenError(line.number, f"duplicate parameter `{name}`")
             names.add(name)
             result.append((name, default.strip(), line.number))
             self.i += 1
@@ -162,7 +168,7 @@ class Parser:
     def parse_stage(self, inherited_inputs: list[Signal] | None) -> Stage:
         first = self.current()
         if not first.text.startswith("stage "):
-            raise PipegenError(first.number, "expected stage declaration or endpipeline")
+            raise PigenError(first.number, "expected stage declaration or endpipeline")
         inline = re.fullmatch(r"stage\s+([A-Za-z_][A-Za-z0-9_$]*)\s*\{(.*)\}\s+yields\s+\{(.*)\}\s+begin\s*(.*?)\s*endstage", first.text)
         if inline:
             name, inputs, outputs, body_text = inline.groups()
@@ -182,9 +188,9 @@ class Parser:
                 name, inputs, outputs = match.groups()
                 break
             if line.text.endswith("begin"):
-                raise PipegenError(line.number, "expected `stage NAME {inputs} yields {outputs} begin`")
+                raise PigenError(line.number, "expected `stage NAME {inputs} yields {outputs} begin`")
             if self.i >= len(self.lines):
-                raise PipegenError(line.number, "unterminated stage header")
+                raise PigenError(line.number, "unterminated stage header")
         body: list[SourceLine] = []
         force_skid = suppress_skid = False
         while True:
@@ -199,7 +205,7 @@ class Parser:
             else:
                 body.append(line)
         if force_skid and suppress_skid:
-            raise PipegenError(header_line, "stage cannot contain both skid and no_skid")
+            raise PigenError(header_line, "stage cannot contain both skid and no_skid")
         return self.build_stage(name, inputs, outputs, body, force_skid, suppress_skid, header_line, inherited_inputs)
 
     @staticmethod
@@ -207,7 +213,7 @@ class Parser:
         input_items = parse_tuple(inputs, line)
         output_items = parse_tuple(outputs, line)
         if not input_items or not output_items:
-            raise PipegenError(line, "stage input and yielded tuples must not be empty")
+            raise PigenError(line, "stage input and yielded tuples must not be empty")
         declarations, statements = parse_body(body)
         inputs_resolved, outputs_resolved, declarations = resolve_stage_items(input_items, output_items, declarations, inherited_inputs)
         return Stage(name, inputs_resolved, outputs_resolved, declarations, statements, force_skid, suppress_skid, line)
@@ -221,7 +227,7 @@ class Parser:
 def parse_signal(text: str, line: int) -> Signal:
     match = re.fullmatch(r"(?:(logic|wire)\s+)?(?:(signed|unsigned)\s+)?\[\s*(.+?)\s*:\s*(.+?)\s*\]\s+([A-Za-z_][A-Za-z0-9_$]*)", text.strip())
     if not match:
-        raise PipegenError(line, "expected a packed declaration such as `logic signed [W-1:0] sample`")
+        raise PigenError(line, "expected a packed declaration such as `logic signed [W-1:0] sample`")
     base, sign, upper, lower, name = match.groups()
     return Signal(name, upper.strip(), lower.strip(), sign == "signed", base or "logic", line)
 
@@ -237,7 +243,7 @@ def parse_tuple(text: str, line: int) -> list[HeaderItem]:
             signal = parse_signal(item, line)
             header = HeaderItem(signal.name, signal, line)
         if header.name in names:
-            raise PipegenError(line, f"duplicate tuple value `{header.name}`")
+            raise PigenError(line, f"duplicate tuple value `{header.name}`")
         names.add(header.name)
         result.append(header)
     return result
@@ -259,7 +265,7 @@ def parse_body(lines: list[SourceLine]) -> tuple[list[Declaration], list[str]]:
         declaration = parse_declaration(line)
         if declaration:
             if declaration.signal.name in names:
-                raise PipegenError(line.number, f"duplicate local declaration `{declaration.signal.name}`")
+                raise PigenError(line.number, f"duplicate local declaration `{declaration.signal.name}`")
             names.add(declaration.signal.name)
             declarations.append(declaration)
         else:
@@ -272,7 +278,7 @@ def resolve_stage_items(inputs: list[HeaderItem], outputs: list[HeaderItem], dec
     typed = {item.name: item.signal for item in inputs + outputs if item.signal}
     for name in typed:
         if name in declared:
-            raise PipegenError(declared[name].signal.line, f"`{name}` is typed in the stage header and must not be redeclared in the body")
+            raise PigenError(declared[name].signal.line, f"`{name}` is typed in the stage header and must not be redeclared in the body")
     resolved: dict[str, Signal] = {name: signal for name, signal in typed.items() if signal}
     for index, item in enumerate(inputs):
         if item.name in resolved:
@@ -284,19 +290,19 @@ def resolve_stage_items(inputs: list[HeaderItem], outputs: list[HeaderItem], dec
             previous = inherited_inputs[index]
             resolved[item.name] = Signal(item.name, previous.upper, previous.lower, previous.signed, previous.base, item.line)
         else:
-            raise PipegenError(item.line, f"bare input `{item.name}` requires a declaration in the first stage body")
+            raise PigenError(item.line, f"bare input `{item.name}` requires a declaration in the first stage body")
     for item in outputs:
         if item.name in resolved:
             continue
         declaration = declared.get(item.name)
         if not declaration:
-            raise PipegenError(item.line, f"bare yielded value `{item.name}` requires a declaration or matching input")
+            raise PigenError(item.line, f"bare yielded value `{item.name}` requires a declaration or matching input")
         resolved[item.name] = declaration.signal
     input_names = {item.name for item in inputs}
     for name in input_names:
         declaration = declared.get(name)
         if declaration and declaration.initializer:
-            raise PipegenError(declaration.signal.line, f"stage input `{name}` cannot have an initializer")
+            raise PigenError(declaration.signal.line, f"stage input `{name}` cannot have an initializer")
     # Header-typed outputs are real local signals even when they have no body declaration.
     for item in outputs:
         if item.signal and item.name not in input_names:
@@ -316,10 +322,10 @@ def width_key(signal: Signal) -> str:
 
 def validate_tuple(producer: list[Signal], consumer: list[Signal], line: int, producer_name: str, consumer_name: str) -> None:
     if len(producer) != len(consumer):
-        raise PipegenError(line, f"{producer_name} has {len(producer)} value(s), but {consumer_name} has {len(consumer)}")
+        raise PigenError(line, f"{producer_name} has {len(producer)} value(s), but {consumer_name} has {len(consumer)}")
     for index, (produced, consumed) in enumerate(zip(producer, consumer), 1):
         if width_key(produced) != width_key(consumed):
-            raise PipegenError(line, f"tuple value {index} width mismatch: {producer_name} yields {produced.width}, {consumer_name} expects {consumed.width}")
+            raise PigenError(line, f"tuple value {index} width mismatch: {producer_name} yields {produced.width}, {consumer_name} expects {consumed.width}")
 
 
 def parameter_block(pipe: Pipeline) -> str:
@@ -472,25 +478,53 @@ def parse_pipe(text: str) -> Pipeline:
 def generate(pipe: Pipeline, skid_step: int = 4) -> str:
     if skid_step < 0:
         raise ValueError("skid step must be non-negative")
-    return "\n".join(["`timescale 1ns/1ps", "// Generated by pipegen.py; do not edit.", render_skid(pipe), *(render_stage(pipe, stage) for stage in pipe.stages), render_top(pipe, skid_step)])
+    return "\n".join(["`timescale 1ns/1ps", "// Generated by pigen.py; do not edit.", render_skid(pipe), *(render_stage(pipe, stage) for stage in pipe.stages), render_top(pipe, skid_step)])
 
 
 def main(argv: list[str] | None = None) -> int:
+    raw_argv = list(sys.argv[1:] if argv is None else argv)
+    explicit_fabric = bool(raw_argv and raw_argv[0] == "fabric")
+    if explicit_fabric:
+        raw_argv.pop(0)
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("source", type=Path)
     parser.add_argument("-o", "--output", required=True, type=Path)
     parser.add_argument("--skid-step", "--skid_step", type=int, default=4, dest="skid_step")
     parser.add_argument("--module", dest="module_name")
-    args = parser.parse_args(argv)
+    parser.add_argument("--manifest", type=Path, help="fabric route manifest output path")
+    diagram_group = parser.add_mutually_exclusive_group()
+    diagram_group.add_argument("--diagram", type=Path, help="fabric SVG diagram output path")
+    diagram_group.add_argument("--no-diagram", action="store_true", help="do not emit the default fabric SVG diagram")
+    args = parser.parse_args(raw_argv)
     try:
-        pipe = parse_pipe(args.source.read_text())
+        source_text = args.source.read_text()
+        fabric_mode = explicit_fabric or bool(re.match(r"\s*fabric\b", source_text))
+        if fabric_mode:
+            from fabric import generate_fabric, parse_fabric, render_diagram
+
+            design = parse_fabric(source_text)
+            if args.module_name:
+                if not IDENT.fullmatch(args.module_name):
+                    raise PigenError(1, "--module must be a valid SystemVerilog identifier")
+                design.name = args.module_name
+            output, manifest, topology = generate_fabric(design)
+            args.output.write_text(output)
+            manifest_path = args.manifest or args.output.with_suffix(args.output.suffix + ".routes")
+            manifest_path.write_text(manifest)
+            if not args.no_diagram:
+                diagram_path = args.diagram or args.output.with_suffix(args.output.suffix + ".svg")
+                diagram_path.write_text(render_diagram(design, topology))
+            return 0
+        if args.diagram or args.no_diagram:
+            raise PigenError(1, "--diagram and --no-diagram are only valid for fabrics")
+        pipe = parse_pipe(source_text)
         if args.module_name:
             if not IDENT.fullmatch(args.module_name):
-                raise PipegenError(1, "--module must be a valid SystemVerilog identifier")
+                raise PigenError(1, "--module must be a valid SystemVerilog identifier")
             pipe.name = args.module_name
         args.output.write_text(generate(pipe, args.skid_step))
-    except (OSError, PipegenError, ValueError) as exc:
-        print(f"pipegen: {exc}", file=sys.stderr)
+    except (OSError, PigenError, ValueError) as exc:
+        print(f"pigen: {exc}", file=sys.stderr)
         return 2
     return 0
 
